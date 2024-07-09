@@ -88,12 +88,10 @@ export default class TextareaMarkdown {
 
   triggerEvent(element, event) {
     if (document.createEvent) {
-      // not IE
       var evt = document.createEvent("HTMLEvents");
       evt.initEvent(event, true, true); // event type, bubbling, cancelable
       return element.dispatchEvent(evt);
     } else {
-      // IE
       var ieEvt = document.createEventObject();
       return element.fireEvent("on" + event, ieEvt);
     }
@@ -113,13 +111,13 @@ export default class TextareaMarkdown {
     this.options["afterPreview"]();
   }
 
-  uploadToOriginal() {}
-
-  uploadAll(files) {
-    Array.from(files, (f) => this.upload(f));
+  async uploadAll(files) {
+    for (const file of files) {
+      await this.upload(file);
+    }
   }
 
-  upload(file) {
+  async upload(file) {
     const reader = new FileReader();
     reader.readAsArrayBuffer(file);
     reader.onload = async () => {
@@ -132,7 +130,6 @@ export default class TextareaMarkdown {
         "]()";
 
       const beforeRange = this.textarea.selectionStart;
-      // const afterRange = text.length;
       const beforeText = this.textarea.value.substring(0, beforeRange);
       const afterText = this.textarea.value.substring(
         beforeRange,
@@ -148,28 +145,33 @@ export default class TextareaMarkdown {
         headers["X-CSRF-Token"] = this.options["csrfToken"];
       }
 
-      fetch(this.options["endPoint"], {
-        method: "POST",
-        headers: headers,
-        credentials: "same-origin",
-        body: params,
-      })
-        .then((response) => {
-          return response.json();
-        })
-        .then((json) => {
-          const responseKey = this.options.responseKey;
-          const url = json[responseKey];
-          const placeholderTag = this.selectPlaceholderTag(fileType);
-          const uploadTag = this.replacePlaceholderTag(placeholderTag, file.name, fileSize, url);
-
-          this.textarea.value = this.textarea.value.replace(text, uploadTag);
-          this.applyPreview();
-        })
-        .catch((error) => {
-          this.textarea.value = this.textarea.value.replace(text, "");
-          console.warn("parsing failed", error);
+      try {
+        const response = await fetch(this.options["endPoint"], {
+          method: "POST",
+          headers: headers,
+          credentials: "same-origin",
+          body: params,
         });
+        const json = await response.json();
+        const responseKey = this.options.responseKey;
+        const url = json[responseKey];
+        const placeholderTag = this.selectPlaceholderTag(fileType);
+
+        const dimensions = await this.getImageSize(url);
+        const uploadTag = this.replacePlaceholderTag(
+          placeholderTag,
+          file.name,
+          fileSize,
+          url,
+          dimensions
+        );
+
+        this.textarea.value = this.textarea.value.replace(text, uploadTag);
+        this.applyPreview();
+      } catch (error) {
+        this.textarea.value = this.textarea.value.replace(text, "");
+        console.warn("parsing failed", error);
+      }
     };
   }
 
@@ -183,11 +185,33 @@ export default class TextareaMarkdown {
     }
   }
 
-  replacePlaceholderTag(placeholderTag, filename, fileSize, url) {
+  replacePlaceholderTag(placeholderTag, filename, fileSize, url, dimensions) {
     if (placeholderTag !== this.options.uploadOtherTag) {
-      return placeholderTag.replace(/%filename/, filename).replace(/%url/, url);
-    }else{
-      return placeholderTag.replace(/%filename/, filename).replace(/%url/, url).replace(/%fileSize/, fileSize);
+      return placeholderTag
+        .replace(/%filename/, filename)
+        .replace(/%url/, url)
+        .replace(/%width/, dimensions.width)
+        .replace(/%height/, dimensions.height);
+    } else {
+      return placeholderTag
+        .replace(/%filename/, filename)
+        .replace(/%url/, url)
+        .replace(/%fileSize/, fileSize)
+        .replace(/%width/, dimensions.width)
+        .replace(/%height/, dimensions.height);
     }
+  }
+
+  getImageSize(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({ width: img.width, height: img.height });
+      };
+      img.onerror = (err) => {
+        reject(err);
+      };
+      img.src = url;
+    });
   }
 }
