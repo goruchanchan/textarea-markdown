@@ -88,10 +88,12 @@ export default class TextareaMarkdown {
 
   triggerEvent(element, event) {
     if (document.createEvent) {
+      // not IE
       var evt = document.createEvent("HTMLEvents");
       evt.initEvent(event, true, true); // event type, bubbling, cancelable
       return element.dispatchEvent(evt);
     } else {
+      // IE
       var ieEvt = document.createEventObject();
       return element.fireEvent("on" + event, ieEvt);
     }
@@ -110,6 +112,8 @@ export default class TextareaMarkdown {
 
     this.options["afterPreview"]();
   }
+
+  uploadToOriginal() {}
 
   async uploadAll(files) {
     for (const file of files) {
@@ -130,6 +134,7 @@ export default class TextareaMarkdown {
         "]()";
 
       const beforeRange = this.textarea.selectionStart;
+      // const afterRange = text.length;
       const beforeText = this.textarea.value.substring(0, beforeRange);
       const afterText = this.textarea.value.substring(
         beforeRange,
