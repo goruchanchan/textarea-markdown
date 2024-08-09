@@ -162,7 +162,11 @@ export default class TextareaMarkdown {
         const url = json[responseKey];
         const placeholderTag = this.selectPlaceholderTag(fileType);
 
-        const dimensions = await this.getImageSize(url);
+        const dimensions =
+          placeholderTag === this.options.uploadImageTag
+            ? await this.getImageSize(url)
+            : null;
+
         const uploadTag = this.replacePlaceholderTag(
           placeholderTag,
           file.name,
@@ -191,19 +195,18 @@ export default class TextareaMarkdown {
   }
 
   replacePlaceholderTag(placeholderTag, filename, fileSize, url, dimensions) {
-    if (placeholderTag !== this.options.uploadOtherTag) {
-      return placeholderTag
-        .replace(/%filename/, filename)
-        .replace(/%url/, url)
+    const commonPlaceholderTag = placeholderTag
+      .replace(/%filename/, filename)
+      .replace(/%url/, url);
+
+    if (placeholderTag === this.options.uploadImageTag) {
+      return commonPlaceholderTag
         .replace(/%width/, dimensions.width)
         .replace(/%height/, dimensions.height);
+    } else if (placeholderTag === this.options.uploadVideoTag) {
+      return commonPlaceholderTag;
     } else {
-      return placeholderTag
-        .replace(/%filename/, filename)
-        .replace(/%url/, url)
-        .replace(/%fileSize/, fileSize)
-        .replace(/%width/, dimensions.width)
-        .replace(/%height/, dimensions.height);
+      return commonPlaceholderTag.replace(/%fileSize/, fileSize);
     }
   }
 
